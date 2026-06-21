@@ -4,6 +4,16 @@ All notable changes are documented here. This file is managed by
 [Commitizen](https://commitizen-tools.github.io/commitizen/) — run `cz bump`
 to cut a version and prepend the next entry from Conventional Commits.
 
+## v0.1.1 (2026-06-21)
+
+### Feat
+
+- **cli**: default config to ~/.config/cwarm/config.json
+
+### Fix
+
+- **warmup**: poll cswap for the new window reset so 'ok' logs it
+
 ## v0.1.0 (2026-06-21)
 
 Initial release.
