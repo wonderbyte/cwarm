@@ -13,8 +13,8 @@ import threading
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .agent import get_agent, get_switcher
-from .cron import to_trigger
 from .config import Account, Config
+from .cron import to_trigger
 from .cswap import ActiveAccount, CswapError
 from .log import log_event
 from .warmup import FAILED, WarmResult, warm_account

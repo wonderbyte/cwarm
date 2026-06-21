@@ -218,3 +218,26 @@ Yes. Via the systemd **user** service plus linger:
 - Switching changes your local active account; run warmups at off-hours. The
   save/restore guarantees your default is unchanged after a batch.
 - Only configure accounts you legitimately own or are authorised to use.
+
+## Contributing / releasing
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `docs:`, `ci:`, …). Lint and tests run in CI:
+
+```bash
+ruff check .
+pytest
+```
+
+Versioning and the changelog are managed by
+[Commitizen](https://commitizen-tools.github.io/commitizen/):
+
+```bash
+cz bump            # bumps version (pyproject + cwarm/__init__.py), updates
+                   # CHANGELOG.md, and creates a vX.Y.Z tag from the commits
+git push --follow-tags
+gh release create vX.Y.Z --notes-from-tag   # triggers the PyPI publish workflow
+```
+
+The project is in `0.x` (`major_version_zero`), so breaking changes bump the
+minor until `1.0.0`.

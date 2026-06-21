@@ -4,8 +4,7 @@ import json
 
 import pytest
 
-from cwarm import cswap
-from cwarm import warmup as warmup_mod
+from cwarm import cswap, warmup as warmup_mod
 from cwarm.config import load_config
 from cwarm.schedule import run_batch
 
