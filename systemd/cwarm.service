@@ -7,8 +7,8 @@
 #   loginctl enable-linger "$USER"   # so it runs without an active login session
 #
 # Logs: journalctl --user -u cwarm -f
-# ExecStart assumes `cwarm` is at ~/.local/bin/cwarm (pipx). Adjust if you
-# installed into a venv, e.g. %h/path/to/.venv/bin/cwarm.
+# ExecStart assumes `cwarm` is at ~/.local/bin/cwarm (uv tool install / pipx).
+# Adjust if you installed into a venv, e.g. %h/path/to/.venv/bin/cwarm.
 
 [Unit]
 Description=cwarm session warmup daemon

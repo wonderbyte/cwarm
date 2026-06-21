@@ -31,13 +31,23 @@ always, even if a warmup fails. So running it never leaves your setup changed.
 
 ## Install
 
+With [uv](https://docs.astral.sh/uv/) (recommended):
+
 ```bash
-pipx install cwarm     # recommended (isolated)
+uv tool install cwarm     # installs the `cwarm` command, isolated
+# or run it without installing:
+uvx cwarm --help
+```
+
+Or with pipx / pip:
+
+```bash
+pipx install cwarm
 # or
 pip install cwarm
 ```
 
-Requires Python 3.12+.
+Requires Python 3.12+ (`uv`/`pipx` handle that for you).
 
 ## Quick start
 
