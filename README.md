@@ -58,6 +58,19 @@ warms whatever account that CLI currently has active (no multi-account swapping)
   and Claude Code (`claude`) runnable non-interactively.
 - Python 3.12+.
 
+## Platform support
+
+cwarm is pure Python and runs anywhere the agent's CLIs (`claude`, `cswap`) do:
+
+- **Linux** — fully supported, with the bundled `systemd` user service.
+- **macOS** — the tool and `cwarm daemon` work the same; for boot persistence
+  use `launchd` or `cron` instead of systemd.
+- **Windows** — works too; `tzdata` is pulled in automatically (Windows has no
+  system IANA tz database). Use Task Scheduler or run `cwarm daemon` as a
+  service instead of systemd.
+
+`cwarm run`/`daemon` are cross-platform; only the deployment recipe differs.
+
 ## Install
 
 ```bash
@@ -230,13 +243,20 @@ pytest
 ```
 
 Versioning and the changelog are managed by
-[Commitizen](https://commitizen-tools.github.io/commitizen/):
+[Commitizen](https://commitizen-tools.github.io/commitizen/).
+
+**To release:** run the **Release & Publish** workflow from the Actions tab
+("Run workflow", optionally choosing the bump size). In one run it bumps the
+version (`pyproject.toml` + `cwarm/__init__.py`), updates `CHANGELOG.md`, tags
+and creates the GitHub Release, then builds and publishes to PyPI via Trusted
+Publishing — no token stored. The next version is inferred from the Conventional
+Commits since the last release.
+
+Or do it locally:
 
 ```bash
-cz bump            # bumps version (pyproject + cwarm/__init__.py), updates
-                   # CHANGELOG.md, and creates a vX.Y.Z tag from the commits
+cz bump                 # bump version + changelog + create the vX.Y.Z tag
 git push --follow-tags
-gh release create vX.Y.Z --notes-from-tag   # triggers the PyPI publish workflow
 ```
 
 The project is in `0.x` (`major_version_zero`), so breaking changes bump the

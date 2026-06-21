@@ -1,25 +1,92 @@
-name: Publish to PyPI
+name: Release & Publish
 
-# Cut a GitHub Release (tag like v1.0.0) to publish that version to PyPI.
-# Uses PyPI Trusted Publishing (OIDC) — no API token is stored in the repo.
-# Bump `version` in pyproject.toml before tagging; PyPI rejects re-uploads.
+# Run from the Actions tab ("Run workflow"). In one run this:
+#   1. lints + tests,
+#   2. bumps the version and updates CHANGELOG.md with Commitizen,
+#   3. creates the git tag + GitHub Release,
+#   4. builds and publishes to PyPI via Trusted Publishing (OIDC, no token).
+#
+# The file is named publish.yml on purpose: the PyPI Trusted Publisher is
+# registered against this filename. Doing bump+release+publish in one workflow
+# avoids the GitHub limitation where a release created by GITHUB_TOKEN does not
+# trigger a separate publish workflow.
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: "Version bump (auto = infer from Conventional Commits)"
+        type: choice
+        default: auto
+        options: [auto, PATCH, MINOR, MAJOR]
 
 jobs:
-  test:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # push the bump commit/tag and create the release
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      released: ${{ steps.bump.outputs.released }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # commitizen needs full history + tags
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
-      - run: python -m pytest -q
+      - name: Lint and test
+        run: |
+          ruff check .
+          python -m pytest -q
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Bump version, changelog, and tag
+        id: bump
+        run: |
+          set -euo pipefail
+          increment="${{ inputs.increment }}"
+          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            extra=""
+            if [ "$increment" != "auto" ]; then extra="--increment $increment"; fi
+            if cz bump --yes --changelog --changelog-to-stdout $extra > notes.md; then
+              echo "released=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "No eligible commits since the last release — nothing to publish."
+              echo "released=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            # First release: tag the current version as-is (no bump).
+            version="$(cz version -p)"
+            cz changelog "$version" --dry-run > notes.md || true
+            git tag -a "v$version" -m "Release v$version"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=v$(cz version -p)" >> "$GITHUB_OUTPUT"
+      - name: Push commit and tag
+        if: steps.bump.outputs.released == 'true'
+        run: |
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "${{ steps.bump.outputs.version }}"
+      - name: Create GitHub Release
+        if: steps.bump.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -s notes.md ]; then
+            gh release create "${{ steps.bump.outputs.version }}" \
+              --title "${{ steps.bump.outputs.version }}" --notes-file notes.md
+          else
+            gh release create "${{ steps.bump.outputs.version }}" \
+              --title "${{ steps.bump.outputs.version }}" --generate-notes
+          fi
 
   publish:
-    needs: test
+    needs: release
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -28,6 +95,8 @@ jobs:
       id-token: write  # required for Trusted Publishing
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release.outputs.version }}  # build the freshly-tagged version
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
