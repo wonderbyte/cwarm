@@ -1,0 +1,13 @@
+# Local config holds real account ids — keep it out of git.
+config.json
+
+# Python / venv / build
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+
+# uv
+uv.lock

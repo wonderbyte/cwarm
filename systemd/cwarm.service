@@ -1,0 +1,25 @@
+# cwarm daemon (FR8, AC8). Install per-user:
+#   mkdir -p ~/.config/systemd/user ~/.local/state/cwarm
+#   cp systemd/cwarm.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cwarm
+#   loginctl enable-linger "$USER"   # so it runs without an active login session
+#
+# Logs: journalctl --user -u cwarm -f
+# Adjust WorkingDirectory / ExecStart paths if you install elsewhere.
+
+[Unit]
+Description=cwarm coding-agent session warmup daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/workspace/apps/cwarm
+ExecStart=%h/workspace/apps/cwarm/.venv/bin/cwarm --config %h/workspace/apps/cwarm/config.json --log-file %h/.local/state/cwarm/cwarm.log daemon
+# always (not on-failure): bring the daemon back even on a clean/unexpected exit.
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
