@@ -1,5 +1,10 @@
 # cwarm
 
+[![CI](https://github.com/wonderbyte/cwarm/actions/workflows/ci.yml/badge.svg)](https://github.com/wonderbyte/cwarm/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/cwarm.svg)](https://pypi.org/project/cwarm/)
+[![Python](https://img.shields.io/pypi/pyversions/cwarm.svg)](https://pypi.org/project/cwarm/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Stagger-warm multiple **coding-agent accounts** so their rolling usage windows
 open early in the day and reset at different times. Today it warms **Claude Code**
 accounts (paired with [`claude-swap`](https://pypi.org/project/claude-swap/),
