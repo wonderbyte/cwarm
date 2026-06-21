@@ -5,92 +5,65 @@
 [![Python](https://img.shields.io/pypi/pyversions/cwarm.svg)](https://pypi.org/project/cwarm/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Stagger-warm multiple **coding-agent accounts** so their rolling usage windows
-open early in the day and reset at different times. Today it warms **Claude Code**
-accounts (paired with [`claude-swap`](https://pypi.org/project/claude-swap/),
-`cswap`); the agent layer is generic, so other CLIs (e.g. Codex) can be added.
-When the active account exhausts its window, another is already warm to switch
-into.
+Stagger-warm multiple **Claude Code accounts** so their rolling 5-hour usage
+windows open early in the day and reset at different times. Paired with
+[`claude-swap`](https://pypi.org/project/claude-swap/) (`cswap`), this keeps a
+fresh account warm to switch into through the whole working day — when the
+active account exhausts its window, another is already going.
 
-This tool **stores no credentials** — the account-switcher (`claude-swap`) is the
-source of truth for accounts and tokens. cwarm only orchestrates it.
+cwarm **stores no credentials**. `claude-swap` owns your accounts and tokens;
+cwarm only tells it which account to make active, then sends one tiny message.
 
 ## How it works
 
-Claude Code's 5-hour window starts on an account's first message and resets
+A Claude Code 5-hour window starts on an account's first message and resets
 exactly 5 hours later. It's a fixed budget, not free capacity — warming only
 *relocates* the dead/regeneration time so it lands outside your working hours.
-Staggering the warmups (e.g. 05:00, 07:30, 10:00) keeps at least one fresh
-account available through the day.
+Staggering the warmups (e.g. 05:00, 07:30, 10:00) means at least one account is
+always fresh.
 
-For each due account, cwarm:
-
-1. switches to it (for Claude: `cswap --switch-to <id>`),
-2. waits `settle_seconds` for the credential swap to land,
-3. sends one minimal message via the agent's command (for Claude: `claude -p "Hi"`)
-   — anchoring that account's window,
-
-then restores whichever account you had active before the batch (always, even
-if a warmup fails).
+For each scheduled account, cwarm switches to it, sends a one-word message to
+anchor its window, then **restores whichever account you had active before** —
+always, even if a warmup fails. So running it never leaves your setup changed.
 
 > A **weekly cap** is shared across web, app, and Claude Code. Warming several
-> accounts daily consumes some of it. Tracking that cap is out of scope.
-
-## Agents
-
-An "agent" is just two things: a **command** that sends a non-interactive prompt
-(`<cli> -p "Hi"`) and an optional **account-switcher**. They live as a small data
-table in `cwarm/agent.py` — not a class per agent:
-
-| agent | command | switcher |
-| --- | --- | --- |
-| `claude` | `claude -p` | `cswap` (claude-swap) |
-
-Each account picks its agent via the `agent` field (default `claude`). To add a
-coding agent, add one row. Only a *new* switcher (something other than `cswap`)
-needs code — a sibling module to `cwarm/cswap.py`. An agent with no switcher
-warms whatever account that CLI currently has active (no multi-account swapping).
-
-## Requirements
-
-- For the `claude` agent: `claude-swap` installed and configured with every
-  target account added (`cswap --add-account` / `cswap --add-token sk-ant-oat01-…`),
-  and Claude Code (`claude`) runnable non-interactively.
-- Python 3.12+.
-
-## Platform support
-
-cwarm is pure Python and runs anywhere the agent's CLIs (`claude`, `cswap`) do:
-
-- **Linux** — fully supported, with the bundled `systemd` user service.
-- **macOS** — the tool and `cwarm daemon` work the same; for boot persistence
-  use `launchd` or `cron` instead of systemd.
-- **Windows** — works too; `tzdata` is pulled in automatically (Windows has no
-  system IANA tz database). Use Task Scheduler or run `cwarm daemon` as a
-  service instead of systemd.
-
-`cwarm run`/`daemon` are cross-platform; only the deployment recipe differs.
+> accounts daily consumes some of it. cwarm does not track that cap.
 
 ## Install
 
 ```bash
-cd ~/workspace/apps/cwarm
-uv venv
-uv pip install -e .
-cp config.example.json config.json   # then edit ids/schedules
+pipx install cwarm     # recommended (isolated)
+# or
+pip install cwarm
 ```
 
-`config.json` is gitignored — it holds your real account ids.
+Requires Python 3.12+.
+
+## Quick start
+
+```bash
+cwarm init        # writes a starter config.json
+$EDITOR config.json
+cwarm validate    # checks your config + that cswap/claude are set up; sends nothing
+cwarm list        # shows each account, whether it's warm, and the next run
+cwarm run         # warm everything now (optional sanity check)
+cwarm daemon      # leave running to warm on schedule
+```
+
+You also need, for each account you list:
+
+- [`claude-swap`](https://pypi.org/project/claude-swap/) installed, with the
+  account added (`cswap --add-account` or `cswap --add-token sk-ant-oat01-…`),
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) installed.
 
 ## Configuration (`config.json`)
 
-No tokens. Accounts are referenced by the handle their agent uses — for Claude, a
-`cswap` **slot number** or **email**.
+No tokens. Accounts are referenced by their `cswap` handle — a **slot number**
+or **email**.
 
 ```json
 {
   "defaults": {
-    "agent": "claude",
     "message": "Hi",
     "timezone": "Asia/Kolkata",
     "settle_seconds": 3,
@@ -107,26 +80,27 @@ No tokens. Accounts are referenced by the handle their agent uses — for Claude
 
 An account can warm at **several times a day** — give it a `schedules` array
 (e.g. 05:00, 11:00, 21:00). Use the singular `schedule` string for a single
-time. Both keys may be present; their union (de-duplicated) is used. Each cron
-time becomes its own daemon job, fired in the account's `timezone`.
+time. Each cron time fires in the account's `timezone`.
 
 | Field | Required | Default | Notes |
 | --- | --- | --- | --- |
-| `id` | yes | — | unique; the agent's account handle (cswap slot or email) |
-| `schedule` / `schedules` | yes | — | one (string) or many (array) 5-field cron times, read in the account's `timezone` |
-| `agent` | no | `defaults` / `claude` | which coding agent warms this account |
+| `id` | yes | — | unique; the account's `cswap` slot number or email |
+| `schedule` / `schedules` | yes | — | one (string) or many (array) of 5-field cron times, read in the account's `timezone` |
 | `enabled` | no | `true` | `false` skips the account entirely |
-| `message` | no | `defaults` / `"Hi"` | the warmup message |
-| `timezone` | no | `defaults` / `Asia/Kolkata` | IANA tz name |
-| `settle_seconds` | no | `defaults` / `3` | delay after switching before sending |
-| `skip_if_warm` | no | `defaults` / `false` | skip if the window is already open |
+| `message` | no | `"Hi"` | the warmup message |
+| `timezone` | no | `Asia/Kolkata` | IANA tz name |
+| `settle_seconds` | no | `3` | delay after switching before sending |
+| `skip_if_warm` | no | `false` | skip if the window is already open (saves usage) |
+| `agent` | no | `claude` | which coding agent warms this account (currently `claude`) |
 
-## Usage
+`config.json` holds your real account ids — keep it out of version control.
+
+## Commands
 
 ```bash
 cwarm init                           # write a starter config.json
-cwarm validate                       # check config + agents; sends nothing
-cwarm list                           # show accounts, live window state, next run
+cwarm validate                       # check config + setup; sends nothing
+cwarm list                           # accounts, live window state, next run
 cwarm run                            # warm all enabled accounts now
 cwarm run --account work@example.com # warm just one
 cwarm daemon                         # long-lived; fires each account on its cron
@@ -135,17 +109,12 @@ cwarm daemon                         # long-lived; fires each account on its cro
 cwarm --config /path/to/config.json --log-file /path/to/cwarm.log <command>
 ```
 
-- **`init`** — writes a starter `config.json` (won't clobber an existing one
-  without `--force`).
-- **`validate`** — confirms the JSON matches the schema, each account's agent CLI
-  (and its switcher) is installed, and every configured `id` exists. Exits
-  non-zero and sends nothing on any problem.
-- **`list`** — read-only table of every account: agent, enabled, live window
-  state (warm/cold), next scheduled run, and its cron times. Sends nothing.
-- **`run`** — warms enabled accounts immediately (one batch, one save/restore per
-  switcher). Good for testing or a system `crontab`. Non-zero if any warmup failed.
-- **`daemon`** — schedules one job per account per cron time, in the account's
-  timezone. Warmups are always serial.
+- **`validate`** — confirms the config is valid, `cswap`/`claude` are installed,
+  and every configured `id` exists. Exits non-zero and sends nothing on a problem.
+- **`list`** — read-only table: account, enabled, live window state (warm/cold),
+  next scheduled run, cron times. Sends nothing.
+- **`run`** — warms enabled accounts immediately. Non-zero if any warmup failed.
+- **`daemon`** — schedules one job per account per cron time. Warmups are serial.
 
 ### Logging
 
@@ -158,106 +127,64 @@ Every attempt emits one structured line to stderr (and the log file if set):
 ```
 
 Outcomes: `ok` (with the window `reset` time), `failed` (with an `error`
-summary), `skipped` (`skip_if_warm` and already warm).
+summary), `skipped` (already warm, with `skip_if_warm`).
 
-## Deployment
+## Running it on a schedule
 
-### systemd (recommended)
+### systemd (Linux)
+
+A sample unit ships in [`systemd/cwarm.service`](systemd/cwarm.service). Put your
+config somewhere stable, then:
 
 ```bash
-mkdir -p ~/.config/systemd/user ~/.local/state/cwarm
-cp systemd/cwarm.service ~/.config/systemd/user/
+mkdir -p ~/.config/cwarm ~/.config/systemd/user ~/.local/state/cwarm
+cp config.json ~/.config/cwarm/config.json
+cp systemd/cwarm.service ~/.config/systemd/user/   # adjust the cwarm path if needed
 systemctl --user daemon-reload
 systemctl --user enable --now cwarm
 loginctl enable-linger "$USER"        # run without an active login session
 journalctl --user -u cwarm -f
 ```
 
-### Alternative: system crontab
+It starts on boot and restarts on failure. On (re)start the schedule is rebuilt
+from `config.json`; a warmup missed by under an hour still fires once on
+recovery, but a warmup missed across a long power-off is skipped (firing a 05:00
+warmup at noon would defeat the staggering).
 
-One line per warmup time invoking the one-shot mode (repeat a line per account
-to warm it several times a day):
+### Alternative: cron
+
+One line per warmup time (`cwarm` must be on PATH):
 
 ```cron
-0 5  * * 1-5 cd ~/workspace/apps/cwarm && .venv/bin/cwarm run --account work@example.com
-0 11 * * 1-5 cd ~/workspace/apps/cwarm && .venv/bin/cwarm run --account work@example.com
-0 21 * * 1-5 cd ~/workspace/apps/cwarm && .venv/bin/cwarm run --account work@example.com
-30 7 * * 1-5 cd ~/workspace/apps/cwarm && .venv/bin/cwarm run --account 2
+0 5  * * 1-5 cwarm --config ~/.config/cwarm/config.json run --account work@example.com
+0 11 * * 1-5 cwarm --config ~/.config/cwarm/config.json run --account work@example.com
+30 7 * * 1-5 cwarm --config ~/.config/cwarm/config.json run --account 2
 ```
 
-## Energy
+### macOS / Windows
 
-The daemon does **not** poll — it sleeps on an event until the next scheduled
-warmup, so idle cost is ~25 MB RAM and effectively 0% CPU (measured: 1 voluntary
-context switch over 3 s idle). There is no busy-loop to optimise.
+`cwarm run`/`daemon` are cross-platform — only the boot-persistence recipe
+differs. On macOS use `launchd` or `cron`; on Windows use Task Scheduler (or run
+`cwarm daemon` as a service). The tool needs `claude` and `cswap` available on
+that OS.
 
-The real per-warmup energy is the `claude -p "Hi"` call: it boots the Node
-Claude Code CLI **and** sends a real LLM inference request to anchor the window.
-That's irreducible — anchoring *requires* a server-side message. So the only
-meaningful lever is **not sending redundant ones**:
+## Tips
 
-- **`skip_if_warm: true`** (the example default) — before switching, parse
-  `cswap --list`; if the account's window is already open, log `skipped` and send
-  nothing. This skips the entire heavy `claude -p` call, the single biggest
-  energy saving available.
-- **Stagger, don't stack** — overlapping schedules waste warmups (and the shared
-  weekly cap). One warmup per window per account is enough to anchor it.
-
-For literally zero idle footprint, use systemd timers or cron instead of the
-daemon — no process is resident between warmups — but the saving over the
-sleeping daemon is marginal.
-
-## System restart
-
-Yes. Via the systemd **user** service plus linger:
-
-- `systemctl --user enable` + `loginctl enable-linger "$USER"` → the daemon
-  **starts on boot**, with no login session required.
-- `Restart=always` (RestartSec=10) → if the process ever exits — crash or
-  otherwise — systemd brings it straight back.
-- On every (re)start the schedule is **rebuilt fresh from `config.json`**
-  (in-memory jobstore; the config is the single source of truth — no stale
-  persisted state to reconcile).
-- **Short downtime is tolerated:** `misfire_grace_time=3600` + `coalesce=True`
-  mean a warmup missed by under an hour still fires once on recovery.
-- **Long power-off is *not* caught up by design:** a 05:00 warmup missed because
-  the machine was off until noon is skipped, not fired late — firing it hours
-  late would defeat the staggering. Edit `config.json` and
-  `systemctl --user restart cwarm` to re-plan.
+- **`skip_if_warm: true`** is the biggest usage saver — it skips the whole
+  `claude -p` call (a real LLM request) when an account's window is already open.
+- **Stagger, don't stack.** Overlapping schedules waste warmups and the shared
+  weekly cap; one warmup per window per account is enough to anchor it.
+- The daemon doesn't poll — it sleeps until the next job (~25 MB RAM, ~0% CPU
+  idle).
 
 ## Safety
 
-- No credentials stored or logged — the switcher (`claude-swap`) owns them.
-- Switching changes your local active account; run warmups at off-hours. The
-  save/restore guarantees your default is unchanged after a batch.
+- No credentials stored or logged — `claude-swap` owns them.
+- Switching changes your active account momentarily; the save/restore guarantees
+  your default is unchanged after a run, so prefer off-hours anyway.
 - Only configure accounts you legitimately own or are authorised to use.
 
-## Contributing / releasing
+## License
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/)
-(`feat:`, `fix:`, `docs:`, `ci:`, …). Lint and tests run in CI:
-
-```bash
-ruff check .
-pytest
-```
-
-Versioning and the changelog are managed by
-[Commitizen](https://commitizen-tools.github.io/commitizen/).
-
-**To release:** run the **Release & Publish** workflow from the Actions tab
-("Run workflow", optionally choosing the bump size). In one run it bumps the
-version (`pyproject.toml` + `cwarm/__init__.py`), updates `CHANGELOG.md`, tags
-and creates the GitHub Release, then builds and publishes to PyPI via Trusted
-Publishing — no token stored. The next version is inferred from the Conventional
-Commits since the last release.
-
-Or do it locally:
-
-```bash
-cz bump                 # bump version + changelog + create the vX.Y.Z tag
-git push --follow-tags
-```
-
-The project is in `0.x` (`major_version_zero`), so breaking changes bump the
-minor until `1.0.0`.
+MIT — see [LICENSE](LICENSE). Project internals and contribution notes live in
+[CLAUDE.md](CLAUDE.md).
