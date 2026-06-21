@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -18,7 +19,11 @@ from .log import log_event, setup_logging
 from .schedule import run_batch, run_daemon
 from .warmup import FAILED
 
-DEFAULT_CONFIG = "config.json"
+
+def default_config_path() -> Path:
+    """Permanent config location: $XDG_CONFIG_HOME/cwarm/config.json (~/.config/...)."""
+    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(base) / "cwarm" / "config.json"
 
 CONFIG_TEMPLATE = """{
   "defaults": {
@@ -42,13 +47,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     setup_logging(log_file=args.log_file)
+    config_path = args.config or default_config_path()
 
     # `init` writes the config, so it must run before we try to load one.
     if args.command == "init":
-        return _cmd_init(args.config, args.force)
+        return _cmd_init(config_path, args.force)
 
     try:
-        config = load_config(args.config)
+        config = load_config(config_path)
     except ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
         return 2
@@ -71,8 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"cwarm {__version__}")
     parser.add_argument(
-        "-c", "--config", default=DEFAULT_CONFIG, type=Path,
-        help=f"path to the JSON config (default: {DEFAULT_CONFIG})",
+        "-c", "--config", default=None, type=Path,
+        help="path to the JSON config (default: ~/.config/cwarm/config.json)",
     )
     parser.add_argument(
         "--log-file", default=None, type=Path,
@@ -98,6 +104,7 @@ def _cmd_init(config_path: Path, force: bool) -> int:
     if config_path.exists() and not force:
         print(f"init: {config_path} already exists — use --force to overwrite", file=sys.stderr)
         return 1
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(CONFIG_TEMPLATE)
     print(f"init: wrote {config_path} — edit the account ids/schedules, then run `cwarm validate`")
     return 0

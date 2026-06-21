@@ -73,13 +73,16 @@ Requires Python 3.12+ (`uv`/`pipx` handle that for you).
 ## Quick start
 
 ```bash
-cwarm init        # writes a starter config.json
-$EDITOR config.json
+cwarm init        # writes a starter config to ~/.config/cwarm/config.json
+$EDITOR ~/.config/cwarm/config.json
 cwarm validate    # checks your config + that cswap/claude are set up; sends nothing
 cwarm list        # shows each account, whether it's warm, and the next run
 cwarm run         # warm everything now (optional sanity check)
 cwarm daemon      # leave running to warm on schedule
 ```
+
+cwarm reads `~/.config/cwarm/config.json` by default (override with `--config`),
+so the commands above work from any directory.
 
 You also need, for each account you list:
 
@@ -133,7 +136,8 @@ window is always available to switch into:
 | `skip_if_warm` | no | `false` | skip if the window is already open (saves usage) |
 | `agent` | no | `claude` | which coding agent warms this account (currently `claude`) |
 
-`config.json` holds your real account ids — keep it out of version control.
+Your config lives at `~/.config/cwarm/config.json` (it holds your real account
+ids — keep it out of version control). Point anywhere else with `--config`.
 
 ## Commands
 
@@ -173,12 +177,11 @@ summary), `skipped` (already warm, with `skip_if_warm`).
 
 ### systemd (Linux)
 
-A sample unit ships in [`systemd/cwarm.service`](systemd/cwarm.service). Put your
-config somewhere stable, then:
+A sample unit ships in [`systemd/cwarm.service`](systemd/cwarm.service); it reads
+the default `~/.config/cwarm/config.json` that `cwarm init` writes.
 
 ```bash
-mkdir -p ~/.config/cwarm ~/.config/systemd/user ~/.local/state/cwarm
-cp config.json ~/.config/cwarm/config.json
+mkdir -p ~/.config/systemd/user ~/.local/state/cwarm
 cp systemd/cwarm.service ~/.config/systemd/user/   # adjust the cwarm path if needed
 systemctl --user daemon-reload
 systemctl --user enable --now cwarm
