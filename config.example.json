@@ -1,15 +1,12 @@
 {
   "defaults": {
-    "agent": "claude",
     "message": "Hi",
     "timezone": "Asia/Kolkata",
     "settle_seconds": 3,
     "skip_if_warm": true
   },
   "accounts": [
-    { "id": "work@example.com", "enabled": true,  "schedules": ["0 5 * * 1-5", "0 11 * * 1-5", "0 21 * * 1-5"] },
-    { "id": "2",                "enabled": true,  "schedule": "30 7 * * 1-5" },
-    { "id": "personal@x.com",   "enabled": true,  "schedules": ["0 10 * * *", "0 18 * * *"] },
-    { "id": "4",                "enabled": false, "schedule": "30 12 * * *" }
+    { "id": "1", "schedules": ["0 5 * * 1-5", "0 10 * * 1-5", "0 15 * * 1-5"] },
+    { "id": "2", "enabled": false, "schedule": "30 7 * * 1-5" }
   ]
 }

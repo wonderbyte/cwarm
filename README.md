@@ -5,14 +5,14 @@
 [![Python](https://img.shields.io/pypi/pyversions/cwarm.svg)](https://pypi.org/project/cwarm/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Stagger-warm multiple **Claude Code accounts** so their rolling 5-hour usage
-windows open early in the day and reset at different times. Paired with
-[`claude-swap`](https://pypi.org/project/claude-swap/) (`cswap`), this keeps a
-fresh account warm to switch into through the whole working day — when the
-active account exhausts its window, another is already going.
+Warm your **Claude Code** 5-hour usage window on a schedule, so its dead
+regeneration time lands outside your working hours instead of stranding you
+mid-flow. cwarm sends a tiny "Hi" at the times you choose to anchor the window
+early — and can stagger several accounts too, if you rotate them with
+[`claude-swap`](https://pypi.org/project/claude-swap/) (`cswap`).
 
-cwarm **stores no credentials**. `claude-swap` owns your accounts and tokens;
-cwarm only tells it which account to make active, then sends one tiny message.
+cwarm **stores no credentials** — `claude-swap` owns your account and tokens;
+cwarm only triggers the warmup.
 
 ## Why I built it
 
@@ -34,18 +34,21 @@ that's just not how I use it.)
 
 ## How it works
 
-A Claude Code 5-hour window starts on an account's first message and resets
-exactly 5 hours later. It's a fixed budget, not free capacity — warming only
-*relocates* the dead/regeneration time so it lands outside your working hours.
-Staggering the warmups (e.g. 05:00, 07:30, 10:00) means at least one account is
-always fresh.
+A Claude Code 5-hour window starts on your first message and resets exactly 5
+hours later. It's a fixed budget, not free capacity — warming only *relocates*
+the dead/regeneration time. Send a warmup "Hi" at 05:00 and the window runs
+05:00–10:00, so the idle stretch happens before work instead of mid-morning. Give
+an account several warmup times to re-anchor each new window to clock times you
+pick, dropping the dead gaps onto your breaks.
 
-For each scheduled account, cwarm switches to it, sends a one-word message to
-anchor its window, then **restores whichever account you had active before** —
-always, even if a warmup fails. So running it never leaves your setup changed.
+**Multiple accounts (optional).** If you keep more than one account in
+`claude-swap`, cwarm warms each on its own staggered schedule — switching to it,
+sending the message, then **restoring whichever account you had active before**
+(always, even if a warmup fails, so running it never leaves your setup changed).
+Staggered resets mean there's always a fresh account to switch into.
 
-> A **weekly cap** is shared across web, app, and Claude Code. Warming several
-> accounts daily consumes some of it. cwarm does not track that cap.
+> A **weekly cap** is shared across web, app, and Claude Code; cwarm does not
+> track it.
 
 ## Install
 
@@ -87,7 +90,7 @@ You also need, for each account you list:
 ## Configuration (`config.json`)
 
 No tokens. Accounts are referenced by their `cswap` handle — a **slot number**
-or **email**.
+or **email**. The simplest config is a single account warmed before work:
 
 ```json
 {
@@ -98,17 +101,26 @@ or **email**.
     "skip_if_warm": true
   },
   "accounts": [
-    { "id": "work@example.com", "enabled": true,  "schedules": ["0 5 * * 1-5", "0 11 * * 1-5", "0 21 * * 1-5"] },
-    { "id": "2",                "enabled": true,  "schedule": "30 7 * * 1-5" },
-    { "id": "personal@x.com",   "enabled": true,  "schedules": ["0 10 * * *", "0 18 * * *"] },
-    { "id": "4",                "enabled": false, "schedule": "30 12 * * *" }
+    { "id": "1", "schedules": ["0 5 * * 1-5", "0 10 * * 1-5", "0 15 * * 1-5"] }
   ]
 }
 ```
 
-An account can warm at **several times a day** — give it a `schedules` array
-(e.g. 05:00, 11:00, 21:00). Use the singular `schedule` string for a single
-time. Each cron time fires in the account's `timezone`.
+That warms account `1` at 05:00, 10:00, and 15:00 on weekdays, anchoring each new
+5-hour window to those clock times. An account can warm at **several times a
+day** — give it a `schedules` array — or use the singular `schedule` string for
+one time. Each cron time fires in the account's `timezone`.
+
+**Rotating multiple accounts?** Add more entries on staggered times so a fresh
+window is always available to switch into:
+
+```json
+"accounts": [
+  { "id": "1", "schedule": "0 5 * * 1-5" },
+  { "id": "2", "schedule": "30 7 * * 1-5" },
+  { "id": "3", "enabled": false, "schedule": "0 10 * * *" }
+]
+```
 
 | Field | Required | Default | Notes |
 | --- | --- | --- | --- |

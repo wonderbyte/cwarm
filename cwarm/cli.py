@@ -22,16 +22,13 @@ DEFAULT_CONFIG = "config.json"
 
 CONFIG_TEMPLATE = """{
   "defaults": {
-    "agent": "claude",
     "message": "Hi",
     "timezone": "Asia/Kolkata",
     "settle_seconds": 3,
     "skip_if_warm": true
   },
   "accounts": [
-    { "id": "1", "enabled": true,  "schedules": ["0 5 * * 1-5", "0 13 * * 1-5"] },
-    { "id": "2", "enabled": true,  "schedule": "30 7 * * 1-5" },
-    { "id": "3", "enabled": false, "schedule": "0 10 * * *" }
+    { "id": "1", "schedules": ["0 5 * * 1-5", "0 10 * * 1-5", "0 15 * * 1-5"] }
   ]
 }
 """
