@@ -80,14 +80,23 @@ def _is_warm(switcher: ModuleType, account: Account) -> bool:
 
 
 def _reset(switcher: ModuleType | None) -> str | None:
-    """Best-effort window reset time for the log line."""
+    """Window reset time for the log line.
+
+    A freshly-anchored window takes a few seconds to show up in `cswap --status`,
+    so poll briefly rather than reading once and missing it.
+    """
     if switcher is None:
         return None
-    try:
-        active = switcher.status()
-    except CswapError:
-        return None
-    return active.window_reset if active else None
+    for attempt in range(4):
+        try:
+            active = switcher.status()
+        except CswapError:
+            return None
+        if active and active.window_reset:
+            return active.window_reset
+        if attempt < 3:
+            time.sleep(2)
+    return None
 
 
 def _summary(exc: Exception) -> str:
