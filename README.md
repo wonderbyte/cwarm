@@ -16,22 +16,21 @@ cwarm only tells it which account to make active, then sends one tiny message.
 
 ## Why I built it
 
-I lean on Claude Code enough to run a few accounts, and I kept hitting the same
-wall: each account's 5-hour window starts on your first message and resets
-exactly 5 hours later — and I burn through a window's budget in about 2 hours,
-then sit idle for the remaining 3 waiting for the reset. Start cold at 8 AM and
-that dead stretch lands around 10 AM–1 PM, right in the middle of my day.
+I kept hitting the same wall: my Claude Code 5-hour window starts on the first
+message and resets exactly 5 hours later — and I burn through its budget in about
+2 hours, then sit idle for the remaining 3 waiting for the reset. Start cold at
+8 AM and that dead stretch lands around 10 AM–1 PM, right in the middle of my day.
 
 The fix: send a throwaway "Hi" *before* I start. Fire it at 5 AM and the window
 runs 05:00–10:00 — so I work 8–10, exhaust it, and the reset is already there;
-the 3-hour gap happened before I sat down instead of mid-morning. Do that across
-a few accounts on staggered times and there's always a fresh window to switch
-into with `claude-swap`, with the idle gaps pushed onto lunch or overnight. (It
-doesn't create more budget — it just moves the dead time out of your way, and
-each account brings its own.)
+the 3-hour gap happened before I sat down instead of mid-morning. Re-warm at the
+reset times and the windows stay anchored to clock times I choose, so the idle
+stretches land on lunch instead of mid-flow. It doesn't create more budget — it
+just moves the dead time out of my way.
 
-I kept meaning to fire those pings every morning and kept forgetting. cwarm just
-does it, on a schedule.
+I kept meaning to fire that ping every morning and kept forgetting. cwarm just
+does it, on a schedule. (It handles several accounts too, if you rotate them —
+that's just not how I use it.)
 
 ## How it works
 
