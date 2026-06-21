@@ -14,6 +14,21 @@ active account exhausts its window, another is already going.
 cwarm **stores no credentials**. `claude-swap` owns your accounts and tokens;
 cwarm only tells it which account to make active, then sends one tiny message.
 
+## Why I built it
+
+I run Claude Code across a few accounts. Each one gets a 5-hour usage window that
+only starts when you send your first message — and resets exactly 5 hours later.
+The annoying part: I'd be deep in something, hit the limit, switch to another
+account with `claude-swap`… and that account's window either hadn't been started
+yet, or I'd warmed them all around the same time so they reset together and left
+me waiting anyway.
+
+What I actually wanted was for the windows to open *early* and at *staggered*
+times — so there's always a fresh account to switch into, and the dead
+regeneration time lands overnight instead of mid-flow. I kept meaning to fire a
+throwaway "Hi" at each account every morning, and kept forgetting. cwarm just
+does that, on a schedule.
+
 ## How it works
 
 A Claude Code 5-hour window starts on an account's first message and resets
