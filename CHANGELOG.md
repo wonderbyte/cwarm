@@ -4,6 +4,12 @@ All notable changes are documented here. This file is managed by
 [Commitizen](https://commitizen-tools.github.io/commitizen/) — run `cz bump`
 to cut a version and prepend the next entry from Conventional Commits.
 
+## v0.1.2 (2026-06-22)
+
+### Fix
+
+- **systemd**: add ~/.local/bin to the unit PATH
+
 ## v0.1.1 (2026-06-21)
 
 ### Feat
