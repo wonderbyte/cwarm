@@ -17,6 +17,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# systemd user services get a minimal PATH; add ~/.local/bin so cwarm can find
+# the cswap and claude CLIs (uv tool / pipx install them there).
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/.local/bin/cwarm --config %h/.config/cwarm/config.json --log-file %h/.local/state/cwarm/cwarm.log daemon
 # always (not on-failure): bring the daemon back even on a clean/unexpected exit.
 Restart=always
