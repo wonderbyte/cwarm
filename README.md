@@ -131,6 +131,7 @@ window is always available to switch into:
 | `schedule` / `schedules` | yes | — | one (string) or many (array) of 5-field cron times, read in the account's `timezone` |
 | `enabled` | no | `true` | `false` skips the account entirely |
 | `message` | no | `"Hi"` | the warmup message |
+| `model` | no | `"haiku"` | model for the ping (passed as `--model`); a ping needs no more. `null` = agent default |
 | `timezone` | no | `Asia/Kolkata` | IANA tz name |
 | `settle_seconds` | no | `3` | delay after switching before sending |
 | `skip_if_warm` | no | `false` | skip if the window is already open (saves usage) |

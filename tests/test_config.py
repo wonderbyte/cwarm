@@ -70,6 +70,27 @@ def test_unknown_agent_rejected(tmp_path):
         load_config(_write(tmp_path, data))
 
 
+def test_model_defaults_to_haiku(tmp_path):
+    cfg = load_config(_write(tmp_path, {"accounts": [{"id": "x", "schedule": "0 5 * * *"}]}))
+    assert cfg.accounts[0].model == "haiku"
+
+
+def test_model_override_and_null(tmp_path):
+    data = {"defaults": {"model": None}, "accounts": [
+        {"id": "x", "schedule": "0 5 * * *"},
+        {"id": "y", "schedule": "0 6 * * *", "model": "sonnet"},
+    ]}
+    cfg = load_config(_write(tmp_path, data))
+    assert cfg.accounts[0].model is None       # defaults null disables --model
+    assert cfg.accounts[1].model == "sonnet"   # per-account override
+
+
+def test_bad_model_rejected(tmp_path):
+    data = {"accounts": [{"id": "x", "schedule": "0 5 * * *", "model": 5}]}
+    with pytest.raises(ConfigError, match="model"):
+        load_config(_write(tmp_path, data))
+
+
 def test_find(tmp_path):
     cfg = load_config(_write(tmp_path, VALID))
     assert cfg.find("2").id == "2"

@@ -73,6 +73,14 @@ def test_skip_if_warm(cfg, harness, monkeypatch):
     assert harness == ["9"]  # only the restore happened
 
 
+def test_warmup_appends_default_model(cfg, harness, monkeypatch):
+    """The warmup command carries --model haiku by default."""
+    captured: list[tuple] = []
+    monkeypatch.setattr(warmup_mod, "_send", lambda command, message: captured.append(command))
+    run_batch(cfg, ["a@x.com"])
+    assert captured == [("claude", "-p", "--model", "haiku")]
+
+
 def test_run_single_account(cfg, harness):
     """AC3: warming one account switches to it, sends, logs ok with reset."""
     results = run_batch(cfg, ["a@x.com"])
