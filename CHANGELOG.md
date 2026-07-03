@@ -4,6 +4,12 @@ All notable changes are documented here. This file is managed by
 [Commitizen](https://commitizen-tools.github.io/commitizen/) — run `cz bump`
 to cut a version and prepend the next entry from Conventional Commits.
 
+## v0.2.0 (2026-07-03)
+
+### Feat
+
+- warm with --model haiku by default
+
 ## v0.1.2 (2026-06-22)
 
 ### Fix

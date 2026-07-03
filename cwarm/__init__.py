@@ -1,3 +1,3 @@
 """cwarm: stagger-warm coding-agent accounts (Claude Code today, Codex next)."""
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
