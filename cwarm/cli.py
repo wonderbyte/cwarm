@@ -28,6 +28,7 @@ def default_config_path() -> Path:
 CONFIG_TEMPLATE = """{
   "defaults": {
     "message": "Hi",
+    "model": "haiku",
     "timezone": "Asia/Kolkata",
     "settle_seconds": 3,
     "skip_if_warm": true

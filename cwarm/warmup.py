@@ -49,12 +49,16 @@ def warm_account(account: Account) -> WarmResult:
             # Can't tell if warm — fall through and warm it rather than skip blindly.
             log_attempt(account.id, "warn", error=f"skip-check-failed: {exc}")
 
+    command = agent.command
+    if account.model:
+        command = (*command, "--model", account.model)
+
     try:
         if switcher:
             switcher.switch_to(account.id)
             if account.settle_seconds > 0:
                 time.sleep(account.settle_seconds)
-        _send(agent.command, account.message)
+        _send(command, account.message)
     except _SEND_ERRORS as exc:
         result = WarmResult(account.id, FAILED, error=_summary(exc))
         log_attempt(account.id, FAILED, error=result.error)

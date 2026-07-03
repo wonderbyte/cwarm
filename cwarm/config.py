@@ -27,6 +27,7 @@ class ConfigError(ValueError):
 class Defaults:
     agent: str = DEFAULT_AGENT
     message: str = "Hi"
+    model: str | None = "haiku"  # cheapest/fastest; a ping needs no more. null = agent default
     timezone: str = "Asia/Kolkata"
     settle_seconds: int = 3
     skip_if_warm: bool = False
@@ -39,6 +40,7 @@ class Account:
     schedules: tuple[str, ...]
     enabled: bool
     message: str
+    model: str | None
     timezone: str
     settle_seconds: int
     skip_if_warm: bool
@@ -96,17 +98,20 @@ def _build_defaults(raw: object) -> Defaults:
     base = Defaults()
     agent = raw.get("agent", base.agent)
     message = raw.get("message", base.message)
+    model = raw.get("model", base.model)
     timezone = raw.get("timezone", base.timezone)
     settle = raw.get("settle_seconds", base.settle_seconds)
     skip = raw.get("skip_if_warm", base.skip_if_warm)
     _check_agent("defaults", agent)
     _check_message("defaults", message)
+    _check_model("defaults", model)
     _check_timezone("defaults", timezone)
     _check_settle("defaults", settle)
     _check_bool("defaults.skip_if_warm", skip)
     return Defaults(
         agent=agent,
         message=message,
+        model=model,
         timezone=timezone,
         settle_seconds=settle,
         skip_if_warm=skip,
@@ -130,11 +135,13 @@ def _build_account(raw: object, defaults: Defaults, index: int) -> Account:
 
     agent = raw.get("agent", defaults.agent)
     message = raw.get("message", defaults.message)
+    model = raw.get("model", defaults.model)
     timezone = raw.get("timezone", defaults.timezone)
     settle = raw.get("settle_seconds", defaults.settle_seconds)
     skip = raw.get("skip_if_warm", defaults.skip_if_warm)
     _check_agent(f"{where} ({account_id})", agent)
     _check_message(f"{where} ({account_id})", message)
+    _check_model(f"{where} ({account_id})", model)
     _check_timezone(f"{where} ({account_id})", timezone)
     _check_settle(f"{where} ({account_id})", settle)
     _check_bool(f"{where} ({account_id}).skip_if_warm", skip)
@@ -145,6 +152,7 @@ def _build_account(raw: object, defaults: Defaults, index: int) -> Account:
         schedules=schedules,
         enabled=enabled,
         message=message,
+        model=model,
         timezone=timezone,
         settle_seconds=settle,
         skip_if_warm=skip,
@@ -188,6 +196,12 @@ def _check_agent(where: str, value: object) -> None:
         raise ConfigError(
             f"{where}.agent: must be one of {known_agents()}, got {value!r}"
         )
+
+
+def _check_model(where: str, value: object) -> None:
+    # A non-empty string (model name/alias passed to --model) or null to disable.
+    if value is not None and (not isinstance(value, str) or not value.strip()):
+        raise ConfigError(f"{where}.model: must be a non-empty string or null")
 
 
 def _check_bool(where: str, value: object) -> None:
