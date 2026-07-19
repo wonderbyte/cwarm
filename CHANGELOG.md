@@ -4,6 +4,16 @@ All notable changes are documented here. This file is managed by
 [Commitizen](https://commitizen-tools.github.io/commitizen/) — run `cz bump`
 to cut a version and prepend the next entry from Conventional Commits.
 
+## v0.2.1 (2026-07-19)
+
+### Fix
+
+- **schedule**: never snapshot credentials of a failed warmup
+
+### Refactor
+
+- **cswap**: read account state from cswap --json
+
 ## v0.2.0 (2026-07-03)
 
 ### Feat
