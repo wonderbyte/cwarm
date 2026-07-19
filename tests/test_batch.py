@@ -26,11 +26,24 @@ def cfg(tmp_path):
     return load_config(p)
 
 
+class Switches(list):
+    """Recorded switch_to calls: account ids in the list, backup flags alongside."""
+
+    def __init__(self):
+        super().__init__()
+        self.backups: list[bool] = []
+
+
 @pytest.fixture
 def harness(monkeypatch):
     """Record cswap.switch_to calls and stub status/send to avoid real I/O."""
-    switches: list[str] = []
-    monkeypatch.setattr(cswap, "switch_to", lambda account_id: switches.append(account_id))
+    switches = Switches()
+
+    def switch_to(account_id, *, backup=True):
+        switches.append(account_id)
+        switches.backups.append(backup)
+
+    monkeypatch.setattr(cswap, "switch_to", switch_to)
     monkeypatch.setattr(cswap, "status", lambda: SAVED)
     monkeypatch.setattr(warmup_mod, "_send", lambda command, message: None)
     return switches
@@ -62,9 +75,54 @@ def test_failed_warmup_does_not_stop_others_or_skip_restore(cfg, harness, monkey
     assert harness[-1] == "9"  # restore still ran
 
 
+def test_failed_warmup_suppresses_backup_on_next_switch(cfg, harness, monkeypatch):
+    """A failed warmup's broken live credentials must not overwrite a good snapshot.
+
+    Regression guard: cswap backs up the outgoing login on every plain switch, so
+    switching away from an account that just failed to authenticate wrote the
+    wreckage over its stored credentials — destroying the refresh token and making
+    the account permanently unrecoverable.
+    """
+    def send(command, message):
+        if send.call == 0:  # first account fails to authenticate
+            send.call += 1
+            raise RuntimeError("Failed to authenticate: OAuth session expired")
+        send.call += 1
+    send.call = 0
+    monkeypatch.setattr(warmup_mod, "_send", send)
+
+    run_batch(cfg, ["a@x.com", "2"])
+
+    assert harness == ["a@x.com", "2", "9"]
+    # Switch onto the doomed account backs up the healthy saved one (fine);
+    # the switch *away* from it must not back up.
+    assert harness.backups == [True, False, True]
+
+
+def test_all_backups_kept_when_every_warmup_succeeds(cfg, harness):
+    """The happy path must still snapshot: Claude Code rotates tokens on use."""
+    run_batch(cfg, ["a@x.com", "2"])
+    assert harness.backups == [True, True, True]
+
+
+def test_failure_suppresses_backup_on_restore_of_last_account(cfg, harness, monkeypatch):
+    """A failure on the *final* account must suppress the backup during restore."""
+    def send(command, message):
+        raise RuntimeError("Failed to authenticate: OAuth session expired")
+    monkeypatch.setattr(warmup_mod, "_send", send)
+
+    run_batch(cfg, ["a@x.com"])
+    assert harness == ["a@x.com", "9"]
+    assert harness.backups == [True, False]
+
+
 def test_skip_if_warm(cfg, harness, monkeypatch):
     """AC7: an account already inside its usage window is skipped, not switched to."""
-    listed = [cswap.ListedAccount(slot="5", email="warm@x.com", active=False, window_open=True)]
+    listed = [
+        cswap.ListedAccount(
+            slot="5", email="warm@x.com", active=False, window_open=True, cred_status="ok"
+        )
+    ]
     monkeypatch.setattr(cswap, "list_accounts", lambda: listed)
 
     results = run_batch(cfg, ["warm@x.com"])

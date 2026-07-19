@@ -149,10 +149,16 @@ def _cmd_validate(config: Config) -> int:
 
 
 def _cmd_list(config: Config) -> int:
-    """Read-only overview: each account's agent, window state (live), and next run. Sends nothing."""
+    """Read-only overview: each account's agent, credential + window state (live), and next run.
+
+    Sends nothing. CREDS comes straight from cswap's `usageStatus`: an account
+    reading anything but `ok` cannot be warmed until it is re-authenticated,
+    which is otherwise only visible by digging through the daemon log.
+    """
     listings: dict[str, list | None] = {}
 
-    def window_state(account: Account) -> str:
+    def listed_account(account: Account):
+        """The switcher's live record for this account, or a marker string."""
         switcher = get_switcher(get_agent(account.agent).switcher)
         if switcher is None:
             return "n/a"
@@ -165,23 +171,43 @@ def _cmd_list(config: Config) -> int:
         listed = listings[name]
         if listed is None:
             return "?"
-        match = next((a for a in listed if a.matches(account.id)), None)
-        if match is None:
-            return "unknown"
+        return next((a for a in listed if a.matches(account.id)), "unknown")
+
+    def window_state(match) -> str:
+        if isinstance(match, str):
+            return match
         return {True: "warm", False: "cold", None: "?"}[match.window_open]
 
-    rows = [
-        (
-            account.id,
-            account.agent,
-            "yes" if account.enabled else "no",
-            window_state(account),
-            _next_run(account) if account.enabled else "-",
-            ", ".join(account.schedules),
+    def cred_state(match) -> str:
+        if isinstance(match, str):
+            return match
+        return "ok" if match.credentials_ok else match.cred_status
+
+    rows = []
+    degraded = 0
+    for account in config.accounts:
+        match = listed_account(account)
+        if not isinstance(match, str) and not match.credentials_ok:
+            degraded += 1
+        rows.append(
+            (
+                account.id,
+                account.agent,
+                "yes" if account.enabled else "no",
+                cred_state(match),
+                window_state(match),
+                _next_run(account) if account.enabled else "-",
+                ", ".join(account.schedules),
+            )
         )
-        for account in config.accounts
-    ]
-    _print_table(("ID", "AGENT", "ON", "WINDOW", "NEXT RUN", "SCHEDULE(S)"), rows)
+    _print_table(("ID", "AGENT", "ON", "CREDS", "WINDOW", "NEXT RUN", "SCHEDULE(S)"), rows)
+    if degraded:
+        sys.stdout.flush()  # keep the warning below the table when stdout is piped
+        print(
+            f"\n{degraded} account(s) have unusable credentials and will fail to warm. "
+            "Re-authenticate them, then `cswap add --slot <n>`.",
+            file=sys.stderr,
+        )
     return 0
 
 

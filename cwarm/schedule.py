@@ -17,7 +17,7 @@ from .config import Account, Config
 from .cron import to_trigger
 from .cswap import ActiveAccount, CswapError
 from .log import log_event
-from .warmup import FAILED, WarmResult, warm_account
+from .warmup import FAILED, SKIPPED, WarmResult, warm_account
 
 # Serialises warmups so two coincident cron firings never run concurrently (FR5).
 _warmup_lock = threading.Lock()
@@ -40,12 +40,32 @@ def _run_serial(accounts: list[Account]) -> list[WarmResult]:
     switchers.discard(None)
     saved = {name: _save_active(name) for name in switchers}
     results: list[WarmResult] = []
+
+    # Per switcher: are the credentials currently live safe to snapshot on the
+    # next switch-away? They are, until a warmup fails against them — a failed
+    # authentication leaves wreckage that would otherwise overwrite the last
+    # good stored snapshot and make the account unrecoverable (no refresh
+    # token), which is how a stale-token blip turns permanent.
+    trusted = dict.fromkeys(switchers, True)
+
     try:
         for account in accounts:
-            results.append(warm_account(account))
+            name = get_agent(account.agent).switcher
+            result = warm_account(account, backup_current=trusted.get(name, True))
+            results.append(result)
+            # SKIPPED means no switch happened, so whatever is live is unchanged.
+            if name is not None and result.outcome != SKIPPED:
+                trusted[name] = result.outcome != FAILED
+                if not trusted[name]:
+                    log_event(
+                        "backup-suppressed",
+                        switcher=name,
+                        account=account.id,
+                        error="warmup-failed; not snapshotting broken live credentials",
+                    )
     finally:
         for name, active in saved.items():
-            _restore_active(name, active)
+            _restore_active(name, active, backup=trusted.get(name, True))
     return results
 
 
@@ -62,13 +82,20 @@ def _save_active(switcher_name: str) -> ActiveAccount | None:
     return active
 
 
-def _restore_active(switcher_name: str, saved: ActiveAccount | None) -> None:
+def _restore_active(switcher_name: str, saved: ActiveAccount | None, *, backup: bool = True) -> None:
     if saved is None:
         log_event("restore-active", switcher=switcher_name, outcome="skipped", error="nothing-to-restore")
         return
     try:
-        get_switcher(switcher_name).switch_to(saved.ref)
-        log_event("restore-active", switcher=switcher_name, account=saved.email, ref=saved.ref, outcome="ok")
+        get_switcher(switcher_name).switch_to(saved.ref, backup=backup)
+        log_event(
+            "restore-active",
+            switcher=switcher_name,
+            account=saved.email,
+            ref=saved.ref,
+            outcome="ok",
+            backup="yes" if backup else "no",
+        )
     except CswapError as exc:
         log_event("restore-active", switcher=switcher_name, account=saved.email, outcome=FAILED, error=str(exc))
 
