@@ -35,8 +35,14 @@ class WarmResult:
     error: str | None = None
 
 
-def warm_account(account: Account) -> WarmResult:
-    """Switch to `account` (if its agent switches), settle, and anchor its window."""
+def warm_account(account: Account, *, backup_current: bool = True) -> WarmResult:
+    """Switch to `account` (if its agent switches), settle, and anchor its window.
+
+    `backup_current=False` tells the switcher not to snapshot the credentials it
+    is switching away from — set by the caller when the account currently live
+    just failed to authenticate, so its live credentials are wreckage that must
+    not overwrite a good stored snapshot.
+    """
     agent = get_agent(account.agent)
     switcher = get_switcher(agent.switcher)
 
@@ -55,7 +61,7 @@ def warm_account(account: Account) -> WarmResult:
 
     try:
         if switcher:
-            switcher.switch_to(account.id)
+            switcher.switch_to(account.id, backup=backup_current)
             if account.settle_seconds > 0:
                 time.sleep(account.settle_seconds)
         _send(command, account.message)

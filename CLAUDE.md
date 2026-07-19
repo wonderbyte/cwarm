@@ -75,6 +75,16 @@ CREDS column and warns on stderr.
   back to `from_crontab`. Covered by `tests/test_cron.py`.
 - **Save/restore is per switcher**, not per account — a batch captures each
   switcher's active account once and restores it in a `finally`.
+- **Never snapshot the credentials of an account that just failed to warm.**
+  A plain `cswap switch` backs up the *outgoing* live login first. After a
+  successful warmup that is required (Claude Code rotates the token on use and
+  the stored snapshot must keep up); after a failed one it is destructive — it
+  writes the broken live credentials over the last good snapshot, taking the
+  refresh token with it, and the account can then only be recovered by an
+  interactive re-login. `schedule._run_serial` tracks a per-switcher `trusted`
+  flag and passes `backup=False` (cswap's `--force`) on the switch away from a
+  failed account. cswap's own source calls this "poison the stored backup with
+  stale creds". Covered by `tests/test_batch.py`.
 - **`--token-status` can't combine with `--json`** — cswap rejects the pair, so
   OAuth expiry detail stays text-only. `usageStatus` in the JSON is the machine-
   readable proxy: it separates `ok` from `no_credentials`.

@@ -99,9 +99,20 @@ def list_accounts() -> list[ListedAccount]:
     return accounts
 
 
-def switch_to(account_id: str) -> None:
-    """Make `account_id` (slot number or email) the active account."""
-    _run(["switch", account_id])
+def switch_to(account_id: str, *, backup: bool = True) -> None:
+    """Make `account_id` (slot number or email) the active account.
+
+    A plain switch backs the *outgoing* live credentials up into that account's
+    stored snapshot first. That is what you want after a healthy session (Claude
+    Code may have rotated the token, and the snapshot must keep up), but it is
+    destructive after a failed one: it writes the broken live credentials over
+    the last good snapshot. `backup=False` uses cswap's `--force`, which
+    activates the target without backing up the current login.
+    """
+    args = ["switch", account_id]
+    if not backup:
+        args.append("--force")
+    _run(args)
 
 
 def _identity(entry: dict[str, Any]) -> tuple[str | None, str | None]:

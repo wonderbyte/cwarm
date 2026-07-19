@@ -11,3 +11,6 @@ build/
 
 # uv
 uv.lock
+
+# Local working notes — not for the public repo
+HANDOFF.md
