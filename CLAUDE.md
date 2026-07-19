@@ -56,10 +56,16 @@ Agent(name="claude", command=("claude", "-p"), switcher="cswap")
 - `switcher=None` → cwarm warms whatever account that CLI currently has active
   (no multi-account switching, no skip-if-warm/window-reset info).
 
-`cswap.py` parses `cswap`'s human-readable `--status` / `--list` output with
-narrow regexes (no JSON interface exists). The fixtures in
-`tests/test_cswap_parsing.py` are the exact observed output — keep them in sync
-if cswap's format changes.
+`cswap.py` reads `cswap status --json` / `cswap list --json` (`schemaVersion` 1)
+rather than parsing human-readable output. `_run_json` rejects an unexpected
+`schemaVersion` with a clear error instead of silently misreading the payload.
+The fixtures in `tests/test_cswap_parsing.py` are real observed payloads — keep
+them in sync if the schema changes.
+
+The JSON also carries `usageStatus` per account, exposed as
+`ListedAccount.cred_status` / `.credentials_ok`. `no_credentials` means the slot
+cannot be warmed until it is re-authenticated; `cwarm list` surfaces this in a
+CREDS column and warns on stderr.
 
 ## Gotchas worth remembering
 
@@ -69,6 +75,9 @@ if cswap's format changes.
   back to `from_crontab`. Covered by `tests/test_cron.py`.
 - **Save/restore is per switcher**, not per account — a batch captures each
   switcher's active account once and restores it in a `finally`.
+- **`--token-status` can't combine with `--json`** — cswap rejects the pair, so
+  OAuth expiry detail stays text-only. `usageStatus` in the JSON is the machine-
+  readable proxy: it separates `ok` from `no_credentials`.
 - **PyPI publisher is tied to the workflow filename** `publish.yml`. Don't rename
   that file or the Trusted Publisher stops matching.
 - **A release created by `GITHUB_TOKEN` doesn't trigger other workflows.** That's

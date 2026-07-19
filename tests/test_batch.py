@@ -64,7 +64,11 @@ def test_failed_warmup_does_not_stop_others_or_skip_restore(cfg, harness, monkey
 
 def test_skip_if_warm(cfg, harness, monkeypatch):
     """AC7: an account already inside its usage window is skipped, not switched to."""
-    listed = [cswap.ListedAccount(slot="5", email="warm@x.com", active=False, window_open=True)]
+    listed = [
+        cswap.ListedAccount(
+            slot="5", email="warm@x.com", active=False, window_open=True, cred_status="ok"
+        )
+    ]
     monkeypatch.setattr(cswap, "list_accounts", lambda: listed)
 
     results = run_batch(cfg, ["warm@x.com"])

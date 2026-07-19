@@ -4,23 +4,28 @@ It switches Claude Code credentials and reports per-account usage-window state �
 the only genuinely agent-specific machinery in cwarm. A different coding agent
 that can swap accounts would get a sibling module exposing the same surface
 (`status` / `list_accounts` / `switch_to`), referenced from `agent.py`.
+
+State comes from `cswap --json` (`schemaVersion` 1), not from parsing the
+human-readable output. The JSON also carries `usageStatus`, which is how we
+tell "this account has no usable credentials" apart from "usage lookup failed".
 """
 
 from __future__ import annotations
 
-import re
+import json
 import shutil
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 
 CSWAP = "cswap"
 
-# `Status: Account-3 (email@x [Org])`
-_STATUS_RE = re.compile(r"^Status:\s+Account-(\d+)\s+\(([^\s\[\]()]+)")
-# A listed account header: `  3: email@x [Org] (active)`
-_LIST_HEAD_RE = re.compile(r"^\s*(\d+):\s+(\S+)\s+\[.*?\](?P<active>\s+\(active\))?\s*$")
-# A 5h usage line with a reset time: `├ 5h:   3%   resets 14:09   in 4h 19m`
-_FIVE_H_RE = re.compile(r"5h:\s*\d+%\s*resets\s+(\d{1,2}:\d{2})")
+# The `--json` payload we know how to read. cswap bumps this if the shape changes.
+SCHEMA_VERSION = 1
+
+# usageStatus values that mean the stored credentials are gone or unusable —
+# the account cannot be warmed until it is re-authenticated.
+_BROKEN_CRED_STATUSES = frozenset({"no_credentials", "expired", "unauthorized"})
 
 
 class CswapError(RuntimeError):
@@ -45,9 +50,15 @@ class ListedAccount:
     email: str
     active: bool
     window_open: bool | None  # True=warm, False=closed, None=usage unavailable
+    cred_status: str  # cswap's usageStatus verbatim ("ok", "no_credentials", ...)
 
     def matches(self, account_id: str) -> bool:
         return account_id == self.slot or account_id.lower() == self.email.lower()
+
+    @property
+    def credentials_ok(self) -> bool:
+        """False when cswap reports the stored credentials as missing or expired."""
+        return self.cred_status not in _BROKEN_CRED_STATUSES
 
 
 def is_installed() -> bool:
@@ -56,58 +67,91 @@ def is_installed() -> bool:
 
 def status() -> ActiveAccount | None:
     """Currently-active account, or None if none could be determined."""
-    out = _run(["--status"])
-    slot = email = reset = None
-    for line in out.splitlines():
-        m = _STATUS_RE.match(line)
-        if m:
-            slot, email = m.group(1), m.group(2)
-            continue
-        if reset is None:
-            fm = _FIVE_H_RE.search(line)
-            if fm:
-                reset = fm.group(1)
+    payload = _run_json(["status"])
+    active = payload.get("active")
+    if not isinstance(active, dict):
+        return None
+    slot, email = _identity(active)
     if slot is None or email is None:
         return None
-    return ActiveAccount(slot=slot, email=email, window_reset=reset)
+    return ActiveAccount(slot=slot, email=email, window_reset=_window_reset(active))
 
 
 def list_accounts() -> list[ListedAccount]:
-    """All managed accounts with their usage-window state."""
-    out = _run(["--list"])
+    """All managed accounts with their usage-window and credential state."""
+    payload = _run_json(["list"])
     accounts: list[ListedAccount] = []
-    current: dict | None = None
-
-    def flush() -> None:
-        if current is not None:
-            accounts.append(ListedAccount(**current))
-
-    for line in out.splitlines():
-        head = _LIST_HEAD_RE.match(line)
-        if head:
-            flush()
-            current = {
-                "slot": head.group(1),
-                "email": head.group(2),
-                "active": head.group("active") is not None,
-                "window_open": None,
-            }
+    for entry in payload.get("accounts") or []:
+        if not isinstance(entry, dict):
             continue
-        if current is None:
+        slot, email = _identity(entry)
+        if slot is None or email is None:
             continue
-        if "Running instances" in line:
-            break
-        if _FIVE_H_RE.search(line):
-            current["window_open"] = True
-        elif "usage unavailable" in line.lower():
-            current["window_open"] = None
-    flush()
+        accounts.append(
+            ListedAccount(
+                slot=slot,
+                email=email,
+                active=bool(entry.get("active")),
+                window_open=_window_open(entry),
+                cred_status=str(entry.get("usageStatus") or "unknown"),
+            )
+        )
     return accounts
 
 
 def switch_to(account_id: str) -> None:
     """Make `account_id` (slot number or email) the active account."""
-    _run(["--switch-to", account_id])
+    _run(["switch", account_id])
+
+
+def _identity(entry: dict[str, Any]) -> tuple[str | None, str | None]:
+    """(slot, email) from an account object, or (None, None) if either is missing."""
+    number, email = entry.get("number"), entry.get("email")
+    if number is None or not email:
+        return None, None
+    return str(number), str(email)
+
+
+def _five_hour(entry: dict[str, Any]) -> dict[str, Any] | None:
+    usage = entry.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    five_hour = usage.get("fiveHour")
+    return five_hour if isinstance(five_hour, dict) else None
+
+
+def _window_reset(entry: dict[str, Any]) -> str | None:
+    """The 5h window's local reset clock (HH:MM), or None if no window is open."""
+    five_hour = _five_hour(entry)
+    if not five_hour:
+        return None
+    clock = five_hour.get("clock")
+    return str(clock) if clock else None
+
+
+def _window_open(entry: dict[str, Any]) -> bool | None:
+    """True=window open, False=closed, None=usage unavailable (don't skip blindly)."""
+    if not isinstance(entry.get("usage"), dict):
+        return None
+    return bool(_window_reset(entry))
+
+
+def _run_json(args: list[str]) -> dict[str, Any]:
+    """Run a cswap subcommand with --json and return the decoded payload."""
+    out = _run([*args, "--json"])
+    try:
+        payload = json.loads(out)
+    except json.JSONDecodeError as exc:
+        raise CswapError(f"cswap {' '.join(args)} --json returned invalid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise CswapError(f"cswap {' '.join(args)} --json did not return an object")
+    version = payload.get("schemaVersion")
+    if version != SCHEMA_VERSION:
+        raise CswapError(
+            f"cswap --json schemaVersion {version!r} is unsupported "
+            f"(cwarm expects {SCHEMA_VERSION}); upgrade cwarm or pin cswap"
+        )
+    return payload
 
 
 def _run(args: list[str]) -> str:
