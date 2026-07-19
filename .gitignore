@@ -1,6 +1,9 @@
 # Local config holds real account ids — keep it out of git.
 config.json
 
+# Local working notes — not for the public repo.
+HANDOFF.md
+
 # Python / venv / build
 .venv/
 __pycache__/
